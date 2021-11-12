@@ -109,6 +109,7 @@ class Pool():
 
     @classmethod
     def opset_1(cls, graph, node, **kw):
+        assert node.attr("data_format") == "NCHW", "Only NCHW is supported for PaddlePaddle's model"
         if node.attr('global_pooling') or (node.attr('adaptive')
                                            and node.attr('ksize') == [1, 1]):
             onnx_node = graph.make_node(
@@ -160,14 +161,19 @@ class Pool():
             input_shape = node.input_shape('X', 0)
             k_size = node.attr('ksize')
             paddings = node.attr('paddings')
-            if input_shape[2] > 0 and input_shape[2] + paddings[0] < k_size[0]:
-                k_size[0] = input_shape[2] + paddings[0]
-            if input_shape[3] > 0 and input_shape[3] + paddings[1] < k_size[1]:
-                k_size[1] = input_shape[3] + paddings[1]
+            if len(paddings) == 2:
+                paddings = [paddings[0], paddings[0], paddings[1], paddings[1]]
+            elif len(paddings) == 4:
+                if isinstance(paddings[0], [list, tupe]):
+                    paddings = [paddings[2] + paddings[3]]
+            if input_shape[2] > 0 and input_shape[2] + paddings[0] + paddings[1] < k_size[0]:
+                k_size[0] = input_shape[2] + paddings[0] + paddings[1]
+            if input_shape[3] > 0 and input_shape[3] + paddings[2] + paddings[3] < k_size[1]:
+                k_size[1] = input_shape[3] + paddings[2] + paddings[3]
             attrs = {
                 'kernel_shape': k_size,
                 'strides': node.attr('strides'),
-                'pads': node.attr('paddings') + node.attr('paddings'),
+                'pads': paddings,
             }
             if node.attr('ceil_mode') and graph.opset_version < 10:
                 raise Exception(
