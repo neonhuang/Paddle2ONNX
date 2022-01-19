@@ -18,10 +18,7 @@ import hypothesis.strategies as st
 import numpy as np
 import unittest
 import paddle
-<<<<<<< HEAD
-=======
 import random
->>>>>>> develop
 
 
 class Net(BaseNet):
@@ -35,13 +32,8 @@ class Net(BaseNet):
         """
         axis = self.config['axis']
         if self.config['isAxisTensor']:
-<<<<<<< HEAD
-            axis = paddle.to_tensor(axis)
-        x, out1, out2 = paddle.split(
-=======
             axis = paddle.to_tensor(axis, dtype=self.config['axis_dtype'])
         x = paddle.split(
->>>>>>> develop
             inputs, num_or_sections=self.config['num_or_sections'], axis=axis)
         return x
 

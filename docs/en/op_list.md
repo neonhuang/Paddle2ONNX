@@ -158,7 +158,6 @@
 | stack | 4~15 |
 | stride_slice | 1~15 |
 | stride_slice | 1~12 |
->>>>>>> develop
 | sum | 1~12 |
 | swish | 1~12 |
 | tanh | 1~12 |

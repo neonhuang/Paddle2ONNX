@@ -187,6 +187,5 @@ class TestMeshgridConvert2(OPConvertAutoScanTest):
         self.run_and_statis(max_examples=30)
 
 
->>>>>>> develop
 if __name__ == "__main__":
     unittest.main()
