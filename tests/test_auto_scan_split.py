@@ -18,6 +18,10 @@ import hypothesis.strategies as st
 import numpy as np
 import unittest
 import paddle
+<<<<<<< HEAD
+=======
+import random
+>>>>>>> develop
 
 
 class Net(BaseNet):
@@ -31,8 +35,13 @@ class Net(BaseNet):
         """
         axis = self.config['axis']
         if self.config['isAxisTensor']:
+<<<<<<< HEAD
             axis = paddle.to_tensor(axis)
         x, out1, out2 = paddle.split(
+=======
+            axis = paddle.to_tensor(axis, dtype=self.config['axis_dtype'])
+        x = paddle.split(
+>>>>>>> develop
             inputs, num_or_sections=self.config['num_or_sections'], axis=axis)
         return x
 
@@ -47,26 +56,35 @@ class TestSplitConvert(OPConvertAutoScanTest):
         input_shape = draw(
             st.lists(
                 st.integers(
-                    min_value=4, max_value=10), min_size=3, max_size=3))
-        input_shape = [6, 6, 6]
+                    min_value=2, max_value=8), min_size=2, max_size=5))
         # float64 not supported
-        dtype = draw(st.sampled_from(["float16", "float32", "int32", "int64"]))
+        dtype = draw(st.sampled_from(["float32", "int32", "int64"]))
 
+        axis_dtype = draw(st.sampled_from(["int32", "int64"]))
         isAxisTensor = draw(st.booleans())
-        axis = draw(
-            st.integers(
-                min_value=-len(input_shape), max_value=len(input_shape) - 1))
-        axis_index = 0
-        # if axis < 0:
-        #     axis_index = len(input_shape) + axis
-        # tt = input_shape[axis_index]
+        # when axis is negtive, paddle has bug
+        axis = draw(st.integers(min_value=0, max_value=len(input_shape) - 1))
+
+        axis_index = axis
+        if axis < 0:
+            axis_index = len(input_shape) + axis
         num_or_sections_dtype = draw(st.sampled_from(["int", "list"]))
         if num_or_sections_dtype == "list":
-            num_or_sections = [2, 2, 2]
+            input_shape[axis_index] = 6
+            num_or_sections = [3, 2, 1]
+            random.shuffle(num_or_sections)
+            if draw(st.booleans()):
+                if len(num_or_sections) == 1:
+                    num_or_sections[0] = -1
+                else:
+                    idx = draw(
+                        st.integers(
+                            min_value=0, max_value=len(num_or_sections) - 1))
+                    num_or_sections[idx] = -1
         else:
-            num_or_sections = 3
-
-        axis = 2
+            num_or_sections = draw(st.integers(min_value=2, max_value=5))
+            scale = draw(st.integers(min_value=2, max_value=3))
+            input_shape[axis_index] = num_or_sections * scale
         config = {
             "op_names": ["split"],
             "test_data_shapes": [input_shape],
@@ -74,6 +92,7 @@ class TestSplitConvert(OPConvertAutoScanTest):
             "opset_version": [7, 9, 15],
             "input_spec_shape": [],
             "axis": axis,
+            "axis_dtype": axis_dtype,
             "isAxisTensor": isAxisTensor,
             "num_or_sections": num_or_sections
         }

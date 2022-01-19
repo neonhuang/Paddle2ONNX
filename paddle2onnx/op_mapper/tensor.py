@@ -27,15 +27,23 @@ class Concat():
     support_opset_version_range = (4, 15)
 
     @classmethod
-    def opset_1(cls, graph, node, **kw):
+    def opset_4(cls, graph, node, **kw):
         inputs = node.input('X')
 
         input_dtypes = [node.input_dtype('X', i) for i in range(len(inputs))]
         inputs = mapper_helper.dtype_alignment(graph, inputs, input_dtypes)
         if len(node.input('AxisTensor')) > 0:
-            axes_node = node.input('AxisTensor')[0]
-            axes = graph.parameters[axes_node].attribute[0].t.int64_data
-            axis = axes[0]
+            axis_node = node.input('AxisTensor')[0]
+            # When axis is tensor, only int32 and int64 are supported
+            if axis_node not in graph.parameters:
+                raise Exception(
+                    "Currently does not support the axis parameter as input tensor!"
+                )
+            else:
+                axis = graph.parameters[axis_node].attribute[0].t.int32_data
+                if axis is None or len(axis) < 1:
+                    axis = graph.parameters[axis_node].attribute[
+                        0].t.int64_data[0]
         else:
             axis = node.attr('axis')
         if axis < 0:
@@ -70,7 +78,7 @@ class Stack():
     support_opset_version_range = (4, 15)
 
     @classmethod
-    def opset_1(cls, graph, node, **kw):
+    def opset_4(cls, graph, node, **kw):
         inputs = node.input('X')
         input_dtypes = [node.input_dtype('X', i) for i in range(len(inputs))]
         inputs = mapper_helper.dtype_alignment(graph, inputs, input_dtypes)
@@ -180,7 +188,7 @@ class Shape():
     support_opset_version_range = (6, 15)
 
     @classmethod
-    def opset_1(cls, graph, node, **kw):
+    def opset_6(cls, graph, node, **kw):
         shape_node = graph.make_node('Shape', inputs=node.input('Input'))
         graph.make_node(
             'Cast',
@@ -218,13 +226,14 @@ class Split():
     @classmethod
     def opset_1(cls, graph, node, **kw):
         sections = node.attr('sections')
-        if len(node.input('AxisTensor')) > 0:
-            axes_node = node.input('AxisTensor')[0]
-            axes = graph.parameters[axes_node].attribute[0].t.int64_data
-            axis = axes[0]
-        else:
-            axis = node.attr('axis')
+        axis = cls.get_axis(graph, node)
         if len(sections) > 0:
+            input_shape = node.block.vars[node.input('X')[0]].shape
+            input_index = [i for i, val in enumerate(input_shape) if val == -1]
+            section_index = [i for i, val in enumerate(sections) if val == -1]
+            if len(input_index) == 0 and len(section_index) == 1:
+                sections[section_index[0]] = input_shape[axis] - sum(
+                    sections) - 1
             graph.make_node(
                 'Split',
                 inputs=node.input('X'),
@@ -241,13 +250,14 @@ class Split():
     @classmethod
     def opset_13(cls, graph, node, **kw):
         sections = node.attr('sections')
-        if len(node.input('AxisTensor')) > 0:
-            axes_node = node.input('AxisTensor')[0]
-            axes = graph.parameters[axes_node].attribute[0].t.int64_data
-            axis = axes[0]
-        else:
-            axis = node.attr('axis')
+        axis = cls.get_axis(graph, node)
         if len(sections) > 0:
+            input_shape = node.block.vars[node.input('X')[0]].shape
+            input_index = [i for i, val in enumerate(input_shape) if val == -1]
+            section_index = [i for i, val in enumerate(sections) if val == -1]
+            if len(input_index) == 0 and len(section_index) == 1:
+                sections[section_index[0]] = input_shape[axis] - sum(
+                    sections) - 1
             split_node = graph.make_node(
                 'Constant',
                 attrs={'dtype': dtypes.ONNX.INT64,
@@ -263,6 +273,24 @@ class Split():
                 inputs=node.input('X'),
                 outputs=node.output('Out'),
                 axis=axis)
+
+    @classmethod
+    def get_axis(cls, graph, node):
+        if len(node.input('AxisTensor')) > 0:
+            axis_node = node.input('AxisTensor')[0]
+            # When axis is tensor, only int32 and int64 are supported
+            if axis_node not in graph.parameters:
+                raise Exception(
+                    "Currently does not support the axis parameter as input tensor!"
+                )
+            else:
+                axis = graph.parameters[axis_node].attribute[0].t.int32_data
+                if axis is None or len(axis) < 1:
+                    axis = graph.parameters[axis_node].attribute[
+                        0].t.int64_data[0]
+        else:
+            axis = node.attr('axis')
+        return axis
 
 
 @op_mapper(['slice', 'strided_slice'])
@@ -1755,7 +1783,7 @@ class Meshgrid():
     support_opset_version_range = (8, 15)
 
     @classmethod
-    def opset_1(cls, graph, node, **kw):
+    def opset_8(cls, graph, node, **kw):
         tensors = [t for t in list(node.input('X'))]
         tensors_shape = [graph.make_node('Shape', inputs=t) for t in tensors]
         out_shape = graph.make_node('Concat', inputs=tensors_shape, axis=0)
