@@ -32,7 +32,8 @@ class Concat():
 
         input_dtypes = [node.input_dtype('X', i) for i in range(len(inputs))]
         inputs = mapper_helper.dtype_alignment(graph, inputs, input_dtypes)
-        if len(node.input('AxisTensor')) > 0:
+        node_axis = node.input('AxisTensor')
+        if node_axis is not None and len(node_axis) > 0:
             axis_node = node.input('AxisTensor')[0]
             # When axis is tensor, only int32 and int64 are supported
             if axis_node not in graph.parameters:
@@ -886,7 +887,7 @@ class Assign():
                 value = np.array(node.attr('int64_values'))
             parameter = {
                 'data': value,
-                'dtype': node.attr('dtype'),
+                'dtype': node.output_dtype("Out", 0),
                 'shape': node.attr('shape')
             }
             parameters[node.output('Out', 0)] = parameter
@@ -1144,7 +1145,6 @@ class Clip():
     def opset_1(cls, graph, node, **kw):
         min_value = node.attr('min')
         max_value = node.attr('max')
-        x_dtype = node.input_dtype('X', 0)
         if node.input('Max', 0) is None or len(node.input('Max')) == 0:
             max_ = max_value
         else:
@@ -1153,9 +1153,9 @@ class Clip():
             min_ = min_value
         else:
             min_ = node.input('Min', 0)
-        mapper_helper.clip_helper(graph,
+        mapper_helper.clip_helper(graph, node,
                                   node.input('X', 0), max_, min_,
-                                  node.output('Out', 0), x_dtype)
+                                  node.output('Out', 0))
 
 
 @op_mapper(['pad2d', 'pad3d'])
